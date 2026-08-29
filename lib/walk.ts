@@ -85,10 +85,36 @@ export interface HistoryIndex {
   headPaths: Set<string>;
 }
 
+/**
+ * The scanner is a git client, so it needs a real git binary and a writable
+ * temp directory. Serverless platforms built on Lambda-style images (Vercel's
+ * Node runtime among them) ship neither a git binary nor a persistent working
+ * directory, and `spawn` would otherwise fail with a bare ENOENT that says
+ * nothing about why. Check once per process and say what is actually wrong.
+ */
+let gitCheck: Promise<void> | null = null;
+
+export function assertGitAvailable(): Promise<void> {
+  gitCheck ??= (async () => {
+    try {
+      const res = await run("git", ["--version"], { timeoutMs: 5000 });
+      if (res.code !== 0) throw new Error("non-zero exit");
+    } catch {
+      throw new ScanLimitError(
+        "No git binary is available in this environment. RepoHunter walks history " +
+          "with git plumbing, so it needs a host that provides git and a writable " +
+          "temp directory — a container or VM, not a Lambda-style serverless runtime.",
+      );
+    }
+  })();
+  return gitCheck;
+}
+
 export async function mirrorClone(
   url: string,
   onProgress?: (msg: string) => void,
 ): Promise<string> {
+  await assertGitAvailable();
   const dir = await mkdtemp(join(tmpdir(), "repohunter-"));
   const target = join(dir, "repo.git");
   onProgress?.("cloning");
