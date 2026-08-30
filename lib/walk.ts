@@ -94,16 +94,40 @@ export interface HistoryIndex {
  */
 let gitCheck: Promise<void> | null = null;
 
+/**
+ * Name the host from the marker env vars each platform injects, so the failure
+ * message says *where* it failed. Without this, "no git binary" looks identical
+ * whether the deploy landed on the host you intended or the one you forgot to
+ * disconnect — which is exactly the confusion worth designing out.
+ */
+export function detectHost(): string {
+  const env = process.env;
+  if (env.VERCEL || env.VERCEL_ENV) return "Vercel";
+  if (env.RENDER || env.RENDER_SERVICE_ID) return "Render";
+  if (env.FLY_APP_NAME) return "Fly.io";
+  if (env.RAILWAY_ENVIRONMENT || env.RAILWAY_PROJECT_ID) return "Railway";
+  if (env.K_SERVICE) return "Google Cloud Run";
+  if (env.AWS_LAMBDA_FUNCTION_NAME) return "AWS Lambda";
+  if (env.NETLIFY) return "Netlify";
+  if (env.WEBSITE_INSTANCE_ID) return "Azure App Service";
+  if (env.DYNO) return "Heroku";
+  return "an unidentified host";
+}
+
 export function assertGitAvailable(): Promise<void> {
   gitCheck ??= (async () => {
     try {
       const res = await run("git", ["--version"], { timeoutMs: 5000 });
       if (res.code !== 0) throw new Error("non-zero exit");
     } catch {
+      const host = detectHost();
       throw new ScanLimitError(
-        "No git binary is available in this environment. RepoHunter walks history " +
-          "with git plumbing, so it needs a host that provides git and a writable " +
-          "temp directory — a container or VM, not a Lambda-style serverless runtime.",
+        `No git binary is available on ${host}. RepoHunter walks history with git ` +
+          "plumbing, so it needs a host that provides git and a writable temp " +
+          "directory — a container or VM, not a Lambda-style serverless runtime. " +
+          (host === "Vercel"
+            ? "Vercel's Node runtime cannot provide one; deploy the Dockerfile to a container host instead (see DEPLOY.md)."
+            : `If you expected ${host} to have git, it is not building the Dockerfile — check that the service type is Docker, not a native Node build.`),
       );
     }
   })();
