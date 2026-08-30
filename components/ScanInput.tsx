@@ -2,9 +2,11 @@
 
 import { useState } from "react";
 
+// Samples must be under the 500 MB size guard and be real applications.
+// Wordlist and dataset repos are excluded on purpose: their contents are
+// credential-shaped by design, so every match is a false positive.
 const SAMPLES = [
   "github.com/octocat/Hello-World",
-  "github.com/danielmiessler/SecLists",
 ];
 
 export function ScanInput({
