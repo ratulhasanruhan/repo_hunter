@@ -1,0 +1,15 @@
+# Render blueprint. Render builds the Dockerfile, which installs git — the one
+# dependency Vercel's runtime cannot provide. Connect the repo at
+# dashboard.render.com/blueprints and this file configures the rest.
+services:
+  - type: web
+    name: repohunter
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_TELEMETRY_DISABLED
+        value: "1"
